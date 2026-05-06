@@ -32,19 +32,19 @@ jobs:
       - name: Create Meson ARM64 cross file
         run: |
           cat > cross-aarch64.txt <<EOF
-          [binaries]
-          c = '/usr/bin/${CROSS}-gcc'
-          cpp = '/usr/bin/${CROSS}-g++'
-          ar = '/usr/bin/${CROSS}-ar'
-          strip = '/usr/bin/${CROSS}-strip'
-          pkgconfig = 'pkg-config'
+[binaries]
+c = '/usr/bin/${CROSS}-gcc'
+cpp = '/usr/bin/${CROSS}-g++'
+ar = '/usr/bin/${CROSS}-ar'
+strip = '/usr/bin/${CROSS}-strip'
+pkgconfig = 'pkg-config'
 
-          [host_machine]
-          system = 'linux'
-          cpu_family = 'aarch64'
-          cpu = 'aarch64'
-          endian = 'little'
-          EOF
+[host_machine]
+system = 'linux'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+EOF
 
       - name: Clone libdrm
         run: |
@@ -98,25 +98,35 @@ jobs:
       - name: Install librga prebuilt ARM64
         run: |
           mkdir -p "$PREFIX/include"
+          mkdir -p "$PREFIX/include/rga"
           mkdir -p "$PREFIX/lib"
           mkdir -p "$PREFIX/lib/pkgconfig"
 
           cp -av librga/include/* "$PREFIX/include/"
+          cp -av librga/include/* "$PREFIX/include/rga/"
+
           cp -av librga/libs/Linux/gcc-aarch64/librga.so "$PREFIX/lib/"
           ln -sf librga.so "$PREFIX/lib/librga.so.2"
+          ln -sf librga.so "$PREFIX/lib/libRGA.so"
 
           cat > "$PREFIX/lib/pkgconfig/librga.pc" <<EOF
-          prefix=$PREFIX
-          exec_prefix=\${prefix}
-          libdir=\${prefix}/lib
-          includedir=\${prefix}/include
-          
-          Name: librga
-          Description: Rockchip RGA userspace library
-          Version: 1.10.0
-          Libs: -L\${libdir} -lrga
-          Cflags: -I\${includedir}
-          EOF
+prefix=$PREFIX
+exec_prefix=\${prefix}
+libdir=\${prefix}/lib
+includedir=\${prefix}/include
+
+Name: librga
+Description: Rockchip Raster Graphic Acceleration library
+Version: 2.2.0
+Libs: -L\${libdir} -lrga
+Cflags: -I\${includedir} -I\${includedir}/rga
+EOF
+
+          cp "$PREFIX/lib/pkgconfig/librga.pc" "$PREFIX/lib/pkgconfig/rga.pc"
+
+          file "$PREFIX/lib/librga.so"
+          pkg-config --debug --modversion librga
+          pkg-config --cflags --libs librga
 
       - name: Clone ffmpeg-rockchip
         run: |
@@ -127,13 +137,15 @@ jobs:
         run: |
           export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
           export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
-          export CFLAGS="-I$PREFIX/include -I$PREFIX/include/libdrm"
+          export PKG_CONFIG_SYSROOT_DIR=""
+          export CFLAGS="-I$PREFIX/include -I$PREFIX/include/rga -I$PREFIX/include/libdrm"
           export LDFLAGS="-L$PREFIX/lib"
           export LD_LIBRARY_PATH="$PREFIX/lib"
 
           pkg-config --modversion libdrm
           pkg-config --modversion rockchip_mpp
           pkg-config --modversion librga
+          pkg-config --cflags --libs librga
 
           ./configure \
             --prefix="$PREFIX" \
@@ -154,7 +166,10 @@ jobs:
             --disable-debug \
             --disable-doc \
             --disable-static \
-            --enable-shared
+            --enable-shared \
+            --extra-cflags="-I$PREFIX/include -I$PREFIX/include/rga -I$PREFIX/include/libdrm" \
+            --extra-ldflags="-L$PREFIX/lib" \
+            --extra-libs="-lrga -ldrm"
 
       - name: Build FFmpeg
         working-directory: ffmpeg-rockchip
