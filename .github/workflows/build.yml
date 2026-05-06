@@ -18,16 +18,24 @@ jobs:
     steps:
       - name: Install build deps
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt update
+
           sudo apt install -y \
             git build-essential cmake ninja-build pkg-config \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            yasm nasm python3 tar xz-utils libdrm-dev
+            yasm nasm python3 tar xz-utils \
+            libdrm-dev:arm64
 
-      - name: Verify ARM64 toolchain
+      - name: Verify ARM64 toolchain and libdrm
         run: |
           ${CROSS}-gcc -v
           ${CROSS}-ld -v
+
+          export PKG_CONFIG_LIBDIR="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+          pkg-config --modversion libdrm
+          pkg-config --libs libdrm
+          pkg-config --cflags libdrm
 
       - name: Clone MPP
         run: |
@@ -62,6 +70,7 @@ jobs:
       - name: Install librga prebuilt ARM64
         run: |
           mkdir -p "$PREFIX/include"
+          mkdir -p "$PREFIX/lib"
           mkdir -p "$PREFIX/lib/pkgconfig"
 
           cp -av librga/include/* "$PREFIX/include/"
@@ -70,17 +79,17 @@ jobs:
           ln -sf librga.so "$PREFIX/lib/librga.so.2"
 
           cat > "$PREFIX/lib/pkgconfig/librga.pc" <<EOF
-          prefix=$PREFIX
-          exec_prefix=\${prefix}
-          libdir=\${prefix}/lib
-          includedir=\${prefix}/include
+prefix=$PREFIX
+exec_prefix=\${prefix}
+libdir=\${prefix}/lib
+includedir=\${prefix}/include
 
-          Name: librga
-          Description: Rockchip RGA userspace library
-          Version: 1.10.0
-          Libs: -L\${libdir} -lrga
-          Cflags: -I\${includedir}
-          EOF
+Name: librga
+Description: Rockchip RGA userspace library
+Version: 1.10.0
+Libs: -L\${libdir} -lrga
+Cflags: -I\${includedir}
+EOF
 
       - name: Clone ffmpeg-rockchip
         run: |
@@ -90,9 +99,10 @@ jobs:
         working-directory: ffmpeg-rockchip
         run: |
           export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
-          export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
-          export CFLAGS="-I$PREFIX/include"
-          export LDFLAGS="-L$PREFIX/lib"
+          export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+
+          export CFLAGS="-I$PREFIX/include -I/usr/include -I/usr/include/libdrm"
+          export LDFLAGS="-L$PREFIX/lib -L/usr/lib/aarch64-linux-gnu"
 
           ./configure \
             --prefix="$PREFIX" \
@@ -101,6 +111,7 @@ jobs:
             --cross-prefix=${CROSS}- \
             --cc=/usr/bin/${CROSS}-gcc \
             --cxx=/usr/bin/${CROSS}-g++ \
+            --pkg-config=pkg-config \
             --enable-cross-compile \
             --enable-version3 \
             --enable-gpl \
