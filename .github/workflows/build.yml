@@ -1,0 +1,128 @@
+name: Build FFmpeg Rockchip for Radxa Zero 3W
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    env:
+      PREFIX: ${{ github.workspace }}/ffmpeg-rk3566-rootfs/usr/local
+      SYSROOT: ${{ github.workspace }}/ffmpeg-rk3566-rootfs
+      CROSS: aarch64-linux-gnu
+
+    steps:
+      - name: Install build deps
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            git build-essential cmake ninja-build pkg-config ccache \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            yasm nasm python3 tar xz-utils
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-ffmpeg-rockchip-rk3566-${{ github.run_id }}
+          restore-keys: |
+            ccache-ffmpeg-rockchip-rk3566-
+
+      - name: Setup ccache
+        run: |
+          ccache --set-config=max_size=2G
+          ccache --zero-stats
+
+      - name: Clone MPP
+        run: |
+          git clone --depth=1 https://github.com/rockchip-linux/mpp.git
+
+      - name: Build MPP for ARM64
+        run: |
+          cmake -S mpp -B mpp/build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_C_COMPILER=ccache \
+            -DCMAKE_C_COMPILER_ARG1=${CROSS}-gcc \
+            -DCMAKE_CXX_COMPILER=ccache \
+            -DCMAKE_CXX_COMPILER_ARG1=${CROSS}-g++
+
+          cmake --build mpp/build -j"$(nproc)"
+          cmake --install mpp/build
+
+      - name: Clone librga
+        run: |
+          git clone --depth=1 https://github.com/airockchip/librga.git
+
+      - name: Build librga for ARM64
+        run: |
+          cmake -S librga -B librga/build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_C_COMPILER=ccache \
+            -DCMAKE_C_COMPILER_ARG1=${CROSS}-gcc \
+            -DCMAKE_CXX_COMPILER=ccache \
+            -DCMAKE_CXX_COMPILER_ARG1=${CROSS}-g++
+
+          cmake --build librga/build -j"$(nproc)"
+          cmake --install librga/build
+
+      - name: Clone ffmpeg-rockchip
+        run: |
+          git clone --depth=1 https://github.com/nyanmisaka/ffmpeg-rockchip.git
+
+      - name: Configure FFmpeg Rockchip
+        working-directory: ffmpeg-rockchip
+        run: |
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib/aarch64-linux-gnu/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+          export CFLAGS="-I$PREFIX/include"
+          export LDFLAGS="-L$PREFIX/lib -L$PREFIX/lib/aarch64-linux-gnu"
+
+          ./configure \
+            --prefix="$PREFIX" \
+            --arch=aarch64 \
+            --target-os=linux \
+            --cross-prefix=${CROSS}- \
+            --cc="ccache ${CROSS}-gcc" \
+            --cxx="ccache ${CROSS}-g++" \
+            --enable-cross-compile \
+            --enable-version3 \
+            --enable-gpl \
+            --enable-rkmpp \
+            --enable-rkrga \
+            --enable-libdrm \
+            --enable-pthreads \
+            --enable-small \
+            --disable-debug \
+            --disable-doc \
+            --disable-static \
+            --enable-shared
+
+      - name: Build FFmpeg
+        working-directory: ffmpeg-rockchip
+        run: |
+          make -j"$(nproc)"
+          make install
+
+      - name: Package artifact
+        run: |
+          mkdir -p package
+          tar -C "$SYSROOT" -cJf package/ffmpeg-rockchip-radxa-zero3w-rk3566-arm64.tar.xz usr
+          ccache --show-stats
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-rockchip-radxa-zero3w-rk3566-arm64
+          path: package/*.tar.xz
