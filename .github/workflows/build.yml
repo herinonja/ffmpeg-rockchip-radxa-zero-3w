@@ -79,17 +79,17 @@ jobs:
           ln -sf librga.so "$PREFIX/lib/librga.so.2"
 
           cat > "$PREFIX/lib/pkgconfig/librga.pc" <<EOF
-prefix=$PREFIX
-exec_prefix=\${prefix}
-libdir=\${prefix}/lib
-includedir=\${prefix}/include
-
-Name: librga
-Description: Rockchip RGA userspace library
-Version: 1.10.0
-Libs: -L\${libdir} -lrga
-Cflags: -I\${includedir}
-EOF
+          prefix=$PREFIX
+          exec_prefix=\${prefix}
+          libdir=\${prefix}/lib
+          includedir=\${prefix}/include
+          
+          Name: librga
+          Description: Rockchip RGA userspace library
+          Version: 1.10.0
+          Libs: -L\${libdir} -lrga
+          Cflags: -I\${includedir}
+          EOF
 
       - name: Clone ffmpeg-rockchip
         run: |
