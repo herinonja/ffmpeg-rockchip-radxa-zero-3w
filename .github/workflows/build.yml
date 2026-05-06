@@ -32,19 +32,19 @@ jobs:
       - name: Create Meson ARM64 cross file
         run: |
           cat > cross-aarch64.txt <<EOF
-[binaries]
-c = '/usr/bin/${CROSS}-gcc'
-cpp = '/usr/bin/${CROSS}-g++'
-ar = '/usr/bin/${CROSS}-ar'
-strip = '/usr/bin/${CROSS}-strip'
-pkgconfig = 'pkg-config'
-
-[host_machine]
-system = 'linux'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
-endian = 'little'
-EOF
+          [binaries]
+          c = '/usr/bin/${CROSS}-gcc'
+          cpp = '/usr/bin/${CROSS}-g++'
+          ar = '/usr/bin/${CROSS}-ar'
+          strip = '/usr/bin/${CROSS}-strip'
+          pkgconfig = 'pkg-config'
+          
+          [host_machine]
+          system = 'linux'
+          cpu_family = 'aarch64'
+          cpu = 'aarch64'
+          endian = 'little'
+          EOF
 
       - name: Clone libdrm
         run: |
@@ -110,17 +110,17 @@ EOF
           ln -sf librga.so "$PREFIX/lib/libRGA.so"
 
           cat > "$PREFIX/lib/pkgconfig/librga.pc" <<EOF
-prefix=$PREFIX
-exec_prefix=\${prefix}
-libdir=\${prefix}/lib
-includedir=\${prefix}/include
-
-Name: librga
-Description: Rockchip Raster Graphic Acceleration library
-Version: 2.2.0
-Libs: -L\${libdir} -lrga
-Cflags: -I\${includedir} -I\${includedir}/rga
-EOF
+          prefix=$PREFIX
+          exec_prefix=\${prefix}
+          libdir=\${prefix}/lib
+          includedir=\${prefix}/include
+          
+          Name: librga
+          Description: Rockchip Raster Graphic Acceleration library
+          Version: 2.2.0
+          Libs: -L\${libdir} -lrga
+          Cflags: -I\${includedir} -I\${includedir}/rga
+          EOF
 
           cp "$PREFIX/lib/pkgconfig/librga.pc" "$PREFIX/lib/pkgconfig/rga.pc"
 
