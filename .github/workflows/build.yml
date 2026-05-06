@@ -33,35 +33,9 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/rockchip-linux/mpp.git
 
-       - name: Install librga prebuilt ARM64
+      - name: Build MPP for ARM64
         run: |
-          mkdir -p "$PREFIX/include"
-          mkdir -p "$PREFIX/lib/pkgconfig"
-
-          cp -av librga/include/* "$PREFIX/include/"
-          cp -av librga/libs/Linux/gcc-aarch64/librga.so "$PREFIX/lib/"
-          ln -sf librga.so "$PREFIX/lib/librga.so.2"
-
-          cat > "$PREFIX/lib/pkgconfig/librga.pc" <<EOF
-          prefix=$PREFIX
-          exec_prefix=\${prefix}
-          libdir=\${prefix}/lib
-          includedir=\${prefix}/include
-
-          Name: librga
-          Description: Rockchip RGA userspace library
-          Version: 1.10.0
-          Libs: -L\${libdir} -lrga
-          Cflags: -I\${includedir}
-          EOF
-
-      - name: Clone librga
-        run: |
-          git clone --depth=1 https://github.com/airockchip/librga.git
-
-      - name: Build librga for ARM64
-        run: |
-          cmake -S librga -B librga/build \
+          cmake -S mpp -B mpp/build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$PREFIX" \
@@ -78,8 +52,35 @@ jobs:
             -DCMAKE_RANLIB=/usr/bin/${CROSS}-ranlib \
             -DCMAKE_STRIP=/usr/bin/${CROSS}-strip
 
-          cmake --build librga/build -j"$(nproc)"
-          cmake --install librga/build
+          cmake --build mpp/build -j"$(nproc)"
+          cmake --install mpp/build
+
+      - name: Clone librga
+        run: |
+          git clone --depth=1 https://github.com/airockchip/librga.git
+
+      - name: Install librga prebuilt ARM64
+        run: |
+          mkdir -p "$PREFIX/include"
+          mkdir -p "$PREFIX/lib/pkgconfig"
+
+          cp -av librga/include/* "$PREFIX/include/"
+          cp -av librga/libs/Linux/gcc-aarch64/librga.so "$PREFIX/lib/"
+
+          ln -sf librga.so "$PREFIX/lib/librga.so.2"
+
+          cat > "$PREFIX/lib/pkgconfig/librga.pc" <<EOF
+          prefix=$PREFIX
+          exec_prefix=\${prefix}
+          libdir=\${prefix}/lib
+          includedir=\${prefix}/include
+
+          Name: librga
+          Description: Rockchip RGA userspace library
+          Version: 1.10.0
+          Libs: -L\${libdir} -lrga
+          Cflags: -I\${includedir}
+          EOF
 
       - name: Clone ffmpeg-rockchip
         run: |
@@ -88,10 +89,10 @@ jobs:
       - name: Configure FFmpeg Rockchip
         working-directory: ffmpeg-rockchip
         run: |
-          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib/aarch64-linux-gnu/pkgconfig"
-          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
           export CFLAGS="-I$PREFIX/include"
-          export LDFLAGS="-L$PREFIX/lib -L$PREFIX/lib/aarch64-linux-gnu"
+          export LDFLAGS="-L$PREFIX/lib"
 
           ./configure \
             --prefix="$PREFIX" \
@@ -122,8 +123,10 @@ jobs:
       - name: Verify built binaries
         run: |
           file "$PREFIX/bin/ffmpeg"
+          readelf -h "$PREFIX/bin/ffmpeg" | grep Machine || true
           "$PREFIX/bin/ffmpeg" -version || true
-          readelf -h "$PREFIX/bin/ffmpeg" | grep Machine
+          "$PREFIX/bin/ffmpeg" -decoders | grep rkmpp || true
+          "$PREFIX/bin/ffmpeg" -filters | grep rkrga || true
 
       - name: Package artifact
         run: |
