@@ -33,27 +33,27 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/rockchip-linux/mpp.git
 
-      - name: Build MPP for ARM64
+       - name: Install librga prebuilt ARM64
         run: |
-          cmake -S mpp -B mpp/build \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$PREFIX" \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-            -DCMAKE_C_COMPILER=/usr/bin/${CROSS}-gcc \
-            -DCMAKE_CXX_COMPILER=/usr/bin/${CROSS}-g++ \
-            -DCMAKE_AR=/usr/bin/${CROSS}-ar \
-            -DCMAKE_AS=/usr/bin/${CROSS}-as \
-            -DCMAKE_LINKER=/usr/bin/${CROSS}-ld \
-            -DCMAKE_NM=/usr/bin/${CROSS}-nm \
-            -DCMAKE_OBJCOPY=/usr/bin/${CROSS}-objcopy \
-            -DCMAKE_OBJDUMP=/usr/bin/${CROSS}-objdump \
-            -DCMAKE_RANLIB=/usr/bin/${CROSS}-ranlib \
-            -DCMAKE_STRIP=/usr/bin/${CROSS}-strip
+          mkdir -p "$PREFIX/include"
+          mkdir -p "$PREFIX/lib/pkgconfig"
 
-          cmake --build mpp/build -j"$(nproc)"
-          cmake --install mpp/build
+          cp -av librga/include/* "$PREFIX/include/"
+          cp -av librga/libs/Linux/gcc-aarch64/librga.so "$PREFIX/lib/"
+          ln -sf librga.so "$PREFIX/lib/librga.so.2"
+
+          cat > "$PREFIX/lib/pkgconfig/librga.pc" <<EOF
+          prefix=$PREFIX
+          exec_prefix=\${prefix}
+          libdir=\${prefix}/lib
+          includedir=\${prefix}/include
+
+          Name: librga
+          Description: Rockchip RGA userspace library
+          Version: 1.10.0
+          Libs: -L\${libdir} -lrga
+          Cflags: -I\${includedir}
+          EOF
 
       - name: Clone librga
         run: |
