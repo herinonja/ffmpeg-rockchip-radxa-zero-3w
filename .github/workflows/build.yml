@@ -107,7 +107,6 @@ jobs:
 
           cp -av librga/libs/Linux/gcc-aarch64/librga.so "$PREFIX/lib/"
           ln -sf librga.so "$PREFIX/lib/librga.so.2"
-          ln -sf librga.so "$PREFIX/lib/libRGA.so"
 
           cat > "$PREFIX/lib/pkgconfig/librga.pc" <<EOF
           prefix=$PREFIX
@@ -116,7 +115,7 @@ jobs:
           includedir=\${prefix}/include
           
           Name: librga
-          Description: Rockchip Raster Graphic Acceleration library
+          Description: Rockchip RGA library
           Version: 2.2.0
           Libs: -L\${libdir} -lrga
           Cflags: -I\${includedir} -I\${includedir}/rga
@@ -124,9 +123,13 @@ jobs:
 
           cp "$PREFIX/lib/pkgconfig/librga.pc" "$PREFIX/lib/pkgconfig/rga.pc"
 
-          file "$PREFIX/lib/librga.so"
-          pkg-config --debug --modversion librga
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
+
+          ls -la "$PREFIX/lib/pkgconfig"
+          pkg-config --modversion librga
           pkg-config --cflags --libs librga
+          file "$PREFIX/lib/librga.so"
 
       - name: Clone ffmpeg-rockchip
         run: |
@@ -138,14 +141,12 @@ jobs:
           export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
           export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
           export PKG_CONFIG_SYSROOT_DIR=""
-          export CFLAGS="-I$PREFIX/include -I$PREFIX/include/rga -I$PREFIX/include/libdrm"
-          export LDFLAGS="-L$PREFIX/lib"
           export LD_LIBRARY_PATH="$PREFIX/lib"
 
           pkg-config --modversion libdrm
           pkg-config --modversion rockchip_mpp
           pkg-config --modversion librga
-          pkg-config --cflags --libs librga
+          pkg-config --cflags --libs libdrm rockchip_mpp librga
 
           ./configure \
             --prefix="$PREFIX" \
