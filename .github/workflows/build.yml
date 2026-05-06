@@ -20,22 +20,14 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y \
-            git build-essential cmake ninja-build pkg-config ccache \
+            git build-essential cmake ninja-build pkg-config \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            yasm nasm python3 tar xz-utils
+            yasm nasm python3 tar xz-utils libdrm-dev
 
-      - name: Cache ccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ccache
-          key: ccache-ffmpeg-rockchip-rk3566-${{ github.run_id }}
-          restore-keys: |
-            ccache-ffmpeg-rockchip-rk3566-
-
-      - name: Setup ccache
+      - name: Verify ARM64 toolchain
         run: |
-          ccache --set-config=max_size=2G
-          ccache --zero-stats
+          ${CROSS}-gcc -v
+          ${CROSS}-ld -v
 
       - name: Clone MPP
         run: |
@@ -49,10 +41,16 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$PREFIX" \
             -DCMAKE_SYSTEM_NAME=Linux \
             -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-            -DCMAKE_C_COMPILER=ccache \
-            -DCMAKE_C_COMPILER_ARG1=${CROSS}-gcc \
-            -DCMAKE_CXX_COMPILER=ccache \
-            -DCMAKE_CXX_COMPILER_ARG1=${CROSS}-g++
+            -DCMAKE_C_COMPILER=/usr/bin/${CROSS}-gcc \
+            -DCMAKE_CXX_COMPILER=/usr/bin/${CROSS}-g++ \
+            -DCMAKE_AR=/usr/bin/${CROSS}-ar \
+            -DCMAKE_AS=/usr/bin/${CROSS}-as \
+            -DCMAKE_LINKER=/usr/bin/${CROSS}-ld \
+            -DCMAKE_NM=/usr/bin/${CROSS}-nm \
+            -DCMAKE_OBJCOPY=/usr/bin/${CROSS}-objcopy \
+            -DCMAKE_OBJDUMP=/usr/bin/${CROSS}-objdump \
+            -DCMAKE_RANLIB=/usr/bin/${CROSS}-ranlib \
+            -DCMAKE_STRIP=/usr/bin/${CROSS}-strip
 
           cmake --build mpp/build -j"$(nproc)"
           cmake --install mpp/build
@@ -69,10 +67,16 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$PREFIX" \
             -DCMAKE_SYSTEM_NAME=Linux \
             -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-            -DCMAKE_C_COMPILER=ccache \
-            -DCMAKE_C_COMPILER_ARG1=${CROSS}-gcc \
-            -DCMAKE_CXX_COMPILER=ccache \
-            -DCMAKE_CXX_COMPILER_ARG1=${CROSS}-g++
+            -DCMAKE_C_COMPILER=/usr/bin/${CROSS}-gcc \
+            -DCMAKE_CXX_COMPILER=/usr/bin/${CROSS}-g++ \
+            -DCMAKE_AR=/usr/bin/${CROSS}-ar \
+            -DCMAKE_AS=/usr/bin/${CROSS}-as \
+            -DCMAKE_LINKER=/usr/bin/${CROSS}-ld \
+            -DCMAKE_NM=/usr/bin/${CROSS}-nm \
+            -DCMAKE_OBJCOPY=/usr/bin/${CROSS}-objcopy \
+            -DCMAKE_OBJDUMP=/usr/bin/${CROSS}-objdump \
+            -DCMAKE_RANLIB=/usr/bin/${CROSS}-ranlib \
+            -DCMAKE_STRIP=/usr/bin/${CROSS}-strip
 
           cmake --build librga/build -j"$(nproc)"
           cmake --install librga/build
@@ -94,8 +98,8 @@ jobs:
             --arch=aarch64 \
             --target-os=linux \
             --cross-prefix=${CROSS}- \
-            --cc="ccache ${CROSS}-gcc" \
-            --cxx="ccache ${CROSS}-g++" \
+            --cc=/usr/bin/${CROSS}-gcc \
+            --cxx=/usr/bin/${CROSS}-g++ \
             --enable-cross-compile \
             --enable-version3 \
             --enable-gpl \
@@ -115,11 +119,16 @@ jobs:
           make -j"$(nproc)"
           make install
 
+      - name: Verify built binaries
+        run: |
+          file "$PREFIX/bin/ffmpeg"
+          "$PREFIX/bin/ffmpeg" -version || true
+          readelf -h "$PREFIX/bin/ffmpeg" | grep Machine
+
       - name: Package artifact
         run: |
           mkdir -p package
           tar -C "$SYSROOT" -cJf package/ffmpeg-rockchip-radxa-zero3w-rk3566-arm64.tar.xz usr
-          ccache --show-stats
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
