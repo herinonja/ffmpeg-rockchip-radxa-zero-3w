@@ -65,6 +65,23 @@ jobs:
           ninja -C libdrm/build
           ninja -C libdrm/build install
 
+      - name: Clone dav1d
+        run: |
+          git clone --depth=1 https://code.videolan.org/videolan/dav1d.git
+
+      - name: Build dav1d for ARM64
+        run: |
+          meson setup dav1d/build dav1d \
+            --cross-file cross-aarch64.txt \
+            --prefix="$PREFIX" \
+            --libdir=lib \
+            --buildtype=release \
+            -Denable_tools=false \
+            -Denable_tests=false
+
+          ninja -C dav1d/build
+          ninja -C dav1d/build install
+
       - name: Clone MPP
         run: |
           git clone --depth=1 https://github.com/rockchip-linux/mpp.git
@@ -126,7 +143,6 @@ jobs:
           export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
           export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 
-          ls -la "$PREFIX/lib/pkgconfig"
           pkg-config --modversion librga
           pkg-config --cflags --libs librga
           file "$PREFIX/lib/librga.so"
@@ -144,9 +160,10 @@ jobs:
           export LD_LIBRARY_PATH="$PREFIX/lib"
 
           pkg-config --modversion libdrm
+          pkg-config --modversion dav1d
           pkg-config --modversion rockchip_mpp
           pkg-config --modversion librga
-          pkg-config --cflags --libs libdrm rockchip_mpp librga
+          pkg-config --cflags --libs libdrm dav1d rockchip_mpp librga
 
           ./configure \
             --prefix="$PREFIX" \
@@ -162,6 +179,7 @@ jobs:
             --enable-rkmpp \
             --enable-rkrga \
             --enable-libdrm \
+            --enable-libdav1d \
             --enable-pthreads \
             --enable-small \
             --disable-debug \
@@ -183,7 +201,7 @@ jobs:
           file "$PREFIX/bin/ffmpeg"
           readelf -h "$PREFIX/bin/ffmpeg" | grep Machine || true
           "$PREFIX/bin/ffmpeg" -version || true
-          "$PREFIX/bin/ffmpeg" -decoders | grep rkmpp || true
+          "$PREFIX/bin/ffmpeg" -decoders | grep -E "rkmpp|dav1d|av1" || true
           "$PREFIX/bin/ffmpeg" -filters | grep rkrga || true
 
       - name: Package artifact
